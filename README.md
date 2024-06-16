@@ -8,7 +8,7 @@ This program consists of simple functions and variables which helps in mapping o
 
 ## Getting Started
 
-This program contains straightforward functions and variables designed for mapping data, minting tokens, burning and trasnfering resources as necessary.Some special keywords like "event", "emit", require() , assert() and revert () are added as to make the code more functional.
+This program contains straightforward functions and variables designed for mapping data, submitting claims , approving and rejecting claims as required.Some special keywords like "event", "emit", require() , assert() and revert () are added as to make the code more functional.
 
 ### Executing program
 
@@ -20,58 +20,119 @@ Once you're on the Remix website, initiate a new file by selecting the "+" icon 
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-contract MyToken {
+contract DecentralizedHealthInsurance {
+    // Enum to track claim state
+    enum ClaimState { Pending, Approved, Rejected }
 
-    string public tokenName = "Quantum Coin";
-    string public tokenAbbrv = "QTC";
-    uint public totalSupply = 0;
+    // Struct to store claim details
+    struct Claim {
+        address patient;     // Address of the patient making the claim
+        uint amount;         // Amount of the claim in wei
+        ClaimState state;    // Current state of the claim (Pending, Approved, Rejected)
+        string description;  // Description of the claim
+    }
 
-    mapping(address => uint) public balance;
+    // Mapping to store claims
+    mapping(uint => Claim) public claims;
+    uint public claimCount;  // Counter for total number of claims
 
-    event Mint(address indexed to, uint256 value);
-    event Burn(address indexed from, uint256 value);
-    event Transfer(address indexed from, address indexed to, uint256 value);
+    // Address of the insurer
+    address public insurer;
 
-    modifier validAddress(address addr) {
-        require(addr != address(0), "Invalid address");
+    // Events
+    event ClaimSubmitted(uint claimId, address patient, uint amount, string description);
+    event ClaimApproved(uint claimId);
+    event ClaimRejected(uint claimId);
+    event PayoutProcessed(uint claimId, address patient, uint amount);
+
+    // Constructor to set the insurer address and make it payable
+    constructor() payable {
+        insurer = msg.sender;
+    }
+
+    // Modifier to check if the caller is the insurer
+    modifier onlyInsurer() {
+        require(msg.sender == insurer, "Only insurer can call this function");
         _;
     }
 
-    function mint(address Address, uint Value) public validAddress(Address) {
-        uint initialBalance = balance[Address];
-        totalSupply += Value;
-        balance[Address] += Value;
-        assert(balance[Address] == initialBalance + Value);
-        emit Mint(Address, Value); 
+    // Function to submit a claim
+    function submitClaim(uint _amount, string memory _description) external {
+        claimCount++;
+        claims[claimCount] = Claim({
+            patient: msg.sender,
+            amount: _amount,
+            state: ClaimState.Pending,
+            description: _description
+        });
+
+        emit ClaimSubmitted(claimCount, msg.sender, _amount, _description);
     }
 
-    function burn(address Address, uint Value) public validAddress(Address) {
-        require(balance[Address] >= Value, "Insufficient balance to burn");
-        assert(totalSupply >= Value);
-        totalSupply -= Value;
-        balance[Address] -= Value;
-        emit Burn(Address, Value); 
+    // Function to approve a claim
+    function approveClaim(uint _claimId) external onlyInsurer {
+        Claim storage claim = claims[_claimId];
+        
+        require(claim.state == ClaimState.Pending, "Claim is not pending");
+        
+        claim.state = ClaimState.Approved;
+        
+        emit ClaimApproved(_claimId);
+
+        processPayout(_claimId);
     }
 
-    function transfer(address from, address to, uint Value) public validAddress(from) validAddress(to) {
-        require(balance[from] >= Value, "Insufficient balance to transfer");
-        require(from != to, "Sender and recipient addresses cannot be the same");
-        if (Value == 0) {
-            revert("Transfer amount cannot be zero");
+    // Function to reject a claim
+    function rejectClaim(uint _claimId) external onlyInsurer {
+        Claim storage claim = claims[_claimId];
+        
+        require(claim.state == ClaimState.Pending, "Claim is not pending");
+        
+        claim.state = ClaimState.Rejected;
+        
+        emit ClaimRejected(_claimId);
+    }
+
+    // Internal function to process payout
+    function processPayout(uint _claimId) internal {
+        Claim storage claim = claims[_claimId];
+        
+        require(claim.state == ClaimState.Approved, "Claim is not approved");
+
+        uint amount = claim.amount;
+        claim.amount = 0;
+        
+        bool payoutSuccess = (payable(claim.patient)).send(amount);
+        assert(payoutSuccess);  // Ensure the payout was successful
+        
+        emit PayoutProcessed(_claimId, claim.patient, amount);
+    }
+
+    // Function to get claim state as string
+    function getClaimState(uint _claimId) public view returns (string memory) {
+        ClaimState state = claims[_claimId].state;
+        if (state == ClaimState.Pending) {
+            return "Pending";
+        } else if (state == ClaimState.Approved) {
+            return "Approved";
+        } else if (state == ClaimState.Rejected) {
+            return "Rejected";
+        } else {
+            revert("Invalid claim state"); // Revert if state is unknown
         }
-        balance[from] -= Value;
-        balance[to] += Value;
-        emit Transfer(from, to, Value); 
     }
+
+    // Fallback function to receive funds
+    receive() external payable {}
 }
+
 ```
 
-To compile the code, click on the "Solidity Compiler" tab in the left-hand sidebar. Make sure the "Compiler" option is set to "0.8.0" (or another compatible version), and then click on the "Compile myToken.sol"(or whatever the file name) button.
+To compile the code, click on the "Solidity Compiler" tab in the left-hand sidebar. Make sure the "Compiler" option is set to "0.8.0" (or another compatible version), and then click on the "Compile DHealthInsure.sol"(or whatever the file name) button.
 
-Once the code is compiled, you can deploy the contract by clicking on the "Deploy & Run Transactions" tab in the left-hand sidebar. Select the "myToken" contract from the dropdown menu, and then click on the "Deploy" button.
+Once the code is compiled, you can deploy the contract by clicking on the "Deploy & Run Transactions" tab in the left-hand sidebar. Select the "DHealthInsure" contract from the dropdown menu, and then click on the "Deploy" button.
 
-Now inorder for the Deployment to work we have to enter the TokenName and TokenAbbreviation beforehand. Then the project will be deployed after which we can select any of the default addresses given before hand to us. 
-The address copied can be used to mint tokens and burn tokens on that address as well as transfering them to another address.The functions like require() , assert() and revert() statements make the code more functional and provides more robust as well.
+The project introduces innovative idea of Decentralized Health Insurance System in which the insurer and the paitent have different addresses to functions which can be accessed by the both can differs.The use of require(),assert() and revert() statements places important role in making the project simple, easy to use and robust. These statements eases the complete functionality of the contract and thros understandable errors for better user interaction.
 
 ## Authors
 
