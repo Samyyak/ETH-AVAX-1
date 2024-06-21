@@ -20,119 +20,82 @@ Once you're on the Remix website, initiate a new file by selecting the "+" icon 
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-contract DecentralizedHealthInsurance {
-    // Enum to track claim state
-    enum ClaimState { Pending, Approved, Rejected }
-
-    // Struct to store claim details
-    struct Claim {
-        address patient;     // Address of the patient making the claim
-        uint amount;         // Amount of the claim in wei
-        ClaimState state;    // Current state of the claim (Pending, Approved, Rejected)
-        string description;  // Description of the claim
+contract TaskManager {
+    struct Task {
+        string description;
+        bool isCompleted;
     }
 
-    // Mapping to store claims
-    mapping(uint => Claim) public claims;
-    uint public claimCount;  // Counter for total number of claims
+    mapping(uint256 => Task) public tasks;
+    uint256 public taskCount;
+    bool public isClosed;
 
-    // Address of the insurer
-    address public insurer;
+    address public owner;
 
-    // Events
-    event ClaimSubmitted(uint claimId, address patient, uint amount, string description);
-    event ClaimApproved(uint claimId);
-    event ClaimRejected(uint claimId);
-    event PayoutProcessed(uint claimId, address patient, uint amount);
-
-    // Constructor to set the insurer address and make it payable
-    constructor() payable {
-        insurer = msg.sender;
-    }
-
-    // Modifier to check if the caller is the insurer
-    modifier onlyInsurer() {
-        require(msg.sender == insurer, "Only insurer can call this function");
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Only owner can perform this action.");
         _;
     }
 
-    // Function to submit a claim
-    function submitClaim(uint _amount, string memory _description) external {
-        claimCount++;
-        claims[claimCount] = Claim({
-            patient: msg.sender,
-            amount: _amount,
-            state: ClaimState.Pending,
-            description: _description
-        });
-
-        emit ClaimSubmitted(claimCount, msg.sender, _amount, _description);
+    constructor() {
+        owner = msg.sender;
+        isClosed = false;
     }
 
-    // Function to approve a claim
-    function approveClaim(uint _claimId) external onlyInsurer {
-        Claim storage claim = claims[_claimId];
-        
-        require(claim.state == ClaimState.Pending, "Claim is not pending");
-        
-        claim.state = ClaimState.Approved;
-        
-        emit ClaimApproved(_claimId);
-
-        processPayout(_claimId);
+    function addTask(string memory _description) public {
+        require(!isClosed, "Task management is closed.");
+        taskCount++;
+        tasks[taskCount] = Task(_description, false);
     }
 
-    // Function to reject a claim
-    function rejectClaim(uint _claimId) external onlyInsurer {
-        Claim storage claim = claims[_claimId];
-        
-        require(claim.state == ClaimState.Pending, "Claim is not pending");
-        
-        claim.state = ClaimState.Rejected;
-        
-        emit ClaimRejected(_claimId);
+    function completeTask(uint256 _taskId) public {
+        require(!isClosed, "Task management is closed.");
+        require(_taskId > 0 && _taskId <= taskCount, "Invalid task ID.");
+
+        Task storage task = tasks[_taskId];
+        require(!task.isCompleted, "Task already completed.");
+
+        task.isCompleted = true;
+
+        // Using assert to check an invariant
+        assert(task.isCompleted == true);
     }
 
-    // Internal function to process payout
-    function processPayout(uint _claimId) internal {
-        Claim storage claim = claims[_claimId];
-        
-        require(claim.state == ClaimState.Approved, "Claim is not approved");
-
-        uint amount = claim.amount;
-        claim.amount = 0;
-        
-        bool payoutSuccess = (payable(claim.patient)).send(amount);
-        assert(payoutSuccess);  // Ensure the payout was successful
-        
-        emit PayoutProcessed(_claimId, claim.patient, amount);
+    function getTaskDetails(uint256 _taskId) public view returns (string memory description, bool isCompleted) {
+        require(_taskId > 0 && _taskId <= taskCount, "Invalid task ID.");
+        Task storage task = tasks[_taskId];
+        return (task.description, task.isCompleted);
     }
 
-    // Function to get claim state as string
-    function getClaimState(uint _claimId) public view returns (string memory) {
-        ClaimState state = claims[_claimId].state;
-        if (state == ClaimState.Pending) {
-            return "Pending";
-        } else if (state == ClaimState.Approved) {
-            return "Approved";
-        } else if (state == ClaimState.Rejected) {
-            return "Rejected";
-        } else {
-            revert("Invalid claim state"); // Revert if state is unknown
+    function closeTaskManagement() public onlyOwner {
+        require(!isClosed, "Task management is already closed.");
+        isClosed = true;
+
+        if (taskCount == 0) {
+            revert("No tasks have been added.");
         }
     }
 
-    // Fallback function to receive funds
-    receive() external payable {}
+    function getTaskSummary() public view returns (uint256 totalTasks, uint256 completedTasks) {
+        require(isClosed, "Task management is still ongoing.");
+        uint256 completedCount = 0;
+        for (uint256 i = 1; i <= taskCount; i++) {
+            if (tasks[i].isCompleted) {
+                completedCount++;
+            }
+        }
+        return (taskCount, completedCount);
+    }
 }
+
 
 ```
 
-To compile the code, click on the "Solidity Compiler" tab in the left-hand sidebar. Make sure the "Compiler" option is set to "0.8.0" (or another compatible version), and then click on the "Compile DHealthInsure.sol"(or whatever the file name) button.
+To compile the code, click on the "Solidity Compiler" tab in the left-hand sidebar. Make sure the "Compiler" option is set to "0.8.0" (or another compatible version), and then click on the "Compile TaskManager.sol"(or whatever the file name) button.
 
-Once the code is compiled, you can deploy the contract by clicking on the "Deploy & Run Transactions" tab in the left-hand sidebar. Select the "DHealthInsure" contract from the dropdown menu, and then click on the "Deploy" button.
+Once the code is compiled, you can deploy the contract by clicking on the "Deploy & Run Transactions" tab in the left-hand sidebar. Select the "TaskManager" contract from the dropdown menu, and then click on the "Deploy" button.
 
-The project introduces innovative idea of Decentralized Health Insurance System in which the insurer and the paitent have different addresses to functions which can be accessed by the both can differs.The use of require(),assert() and revert() statements places important role in making the project simple, easy to use and robust. These statements eases the complete functionality of the contract and thros understandable errors for better user interaction.
+The project introduces innovative idea of Task Management System in which the owner of the contract has the right to add tasks and complete task as well as see its status.The use of require(),assert() and revert() statements places important role in making the project simple, easy to use and robust. These statements eases the complete functionality of the contract and thros understandable errors for better user interaction.
 
 ## Authors
 
