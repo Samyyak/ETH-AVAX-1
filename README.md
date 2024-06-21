@@ -1,4 +1,4 @@
-# Eth-Proof_AVAX1 
+# ETH-AVAX-1 
 
 This Solidity program provides simple functionality for creating a smart contract and using statements like require(),assert() and revert().
 
